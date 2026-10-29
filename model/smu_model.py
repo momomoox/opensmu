@@ -61,6 +61,22 @@ class SMUModel(SMUConfigMixin, SMUMeasurementMixin):
 
     def stoper(self) -> None:
         print('stop')
+        if self.config['global']['meas_mode'] == 'R':
+            try:
+                self.SMU.set_output_off()
+            finally:
+                try:
+                    if self.data.file_handle and not self.data.file_handle.closed:
+                        if getattr(self, 'resistance_result', None) is None:
+                            self.data.file_handle.write('# status=incomplete; no valid resistance fit\n')
+                        self.data.file_handle.close()
+                finally:
+                    try:
+                        self.SMU.close_smu()
+                    finally:
+                        self.started = False
+                        self.currState = SMUState.WAIT_FOR_EVENT
+            return
         if self.data.file_handle and not self.data.file_handle.closed:
             self.data.file_handle.close()
 

@@ -71,6 +71,8 @@ class MainPresenter:
         self.view.start_button.setEnabled(start_enabled)
         self.view.stop_button.setEnabled(stop_enabled)
         self.view.exit_button.setEnabled(exit_enabled)
+        self.view.configure_button.setEnabled(start_enabled)
+        self.view.clear_graph_button.setEnabled(start_enabled)
     
     def show_popup(self, msg: str):
         """Show popup message"""
@@ -83,6 +85,10 @@ class MainPresenter:
         if not self._check_smu_connection():
             return
         
+        if self.model.get_config()['global']['meas_mode'] == 'R':
+            self.start_resistance()
+            return
+
         self.model.set_state(SMUState.START)
         self._update_button_states(start_enabled=False, stop_enabled=True, exit_enabled=False)
         self.view.message('start')
@@ -199,7 +205,9 @@ class MainPresenter:
     
     def timeOutEvent(self):
         """Handle timer timeout event"""
-        if self.model.get_config()['global']['meas_mode'] == 'IV':
+        if self.model.get_config()['global']['meas_mode'] == 'R':
+            self.collect_resistance()
+        elif self.model.get_config()['global']['meas_mode'] == 'IV':
             self.iv_collect_data()
         elif self.model.get_config()['global']['meas_mode'] == 'RT':
             self.rt_collect_data()
@@ -257,4 +265,48 @@ class MainPresenter:
         """Close the application"""
         if self.model.is_started():
             self.stop_clicked()
-        self.view.close() 
+        self.view.close()
+    def start_resistance(self):
+        self.view.resistance_label.setText('R: measuring…')
+        try:
+            self._update_button_states(False, True, False)
+            self.model.set_state(SMUState.START)
+            self.timer_function(self.model.r_starter())
+        except Exception as exc:
+            self.resistance_failed(exc)
+
+    def collect_resistance(self):
+        try:
+            complete = self.model.r_collect_data()
+            self.view.plot_resistance(self.model.data.x_vals, self.model.data.y_vals)
+            if self.model.data.filepath:
+                self.view.communication_text.setText(self.model.data.filepath)
+            if complete:
+                result = self.model.finish_resistance()
+                self.view.plot_resistance(self.model.data.x_vals, self.model.data.y_vals, result)
+                warning = ' — non-ohmic/poor fit' if result['r_squared'] < 0.99 else ''
+                self.view.resistance_label.setText(
+                    f"R = {result['resistance_ohm']:.6g} Ω\n"
+                    f"Fit standard error = {result['standard_error_ohm']:.3g} Ω\n"
+                    f"R² = {result['r_squared']:.6f}{warning}\n"
+                    f"Offset = {result['offset_V']:.4g} V")
+                self.stop_clicked()
+                if self.model.resistance_history_error:
+                    qtw.QMessageBox.warning(
+                        self.view, 'History file not saved',
+                        'Raw data and the fit were saved, but the history could not be updated:\n'
+                        + self.model.resistance_history_error)
+                else:
+                    self.view.message('History: ' + self.model.resistance_history_path)
+        except Exception as exc:
+            self.resistance_failed(exc)
+
+    def resistance_failed(self, exc):
+        self.timer.stop()
+        self.view.resistance_label.setText('R: unavailable — ' + str(exc))
+        try:
+            self.stop_clicked()
+        except Exception as cleanup_error:
+            self._update_button_states()
+            self.view.message('Shutdown error: ' + str(cleanup_error))
+        qtw.QMessageBox.warning(self.view, 'Resistance measurement', str(exc))

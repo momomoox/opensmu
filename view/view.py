@@ -50,6 +50,9 @@ class View(qtw.QWidget):
         _button_layout.setSpacing(30)
 
         self.left_layout.addLayout(_button_layout)
+        self.resistance_label = qtw.QLabel('R: —')
+        self.resistance_label.setWordWrap(True)
+        self.left_layout.addWidget(self.resistance_label)
         
         spacer = qtw.QSpacerItem(20, 200, qtw.QSizePolicy.Minimum, qtw.QSizePolicy.Minimum)
         self.left_layout.addItem(spacer)
@@ -81,8 +84,12 @@ class View(qtw.QWidget):
         # load settings from setting_window
 
         try:
-            self.resize(setting_window.value('window_size'))
-            self.move(setting_window.value('window_position'))
+            size = setting_window.value('window_size')
+            position = setting_window.value('window_position')
+            if size is not None:
+                self.resize(size)
+            if position is not None:
+                self.move(position)
             # user interface parameters
 
         except Exception as e:
@@ -216,3 +223,18 @@ class View(qtw.QWidget):
         print("Close event triggered")
         self.closeSignal.emit()
         event.accept()
+
+    def plot_resistance(self, voltage, current, result=None):
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        ax.plot(voltage, current, 'o', label='Measured')
+        if result is not None:
+            import numpy as np
+            axis = np.asarray(sorted(current))
+            ax.plot(result['resistance_ohm'] * axis + result['offset_V'], axis,
+                    '-', label=f"Fit: R = {result['resistance_ohm']:.6g} Ω")
+        ax.set(xlabel='Measured voltage (V)', ylabel='Measured current (A)',
+               title='Resistance: V = R·I + offset')
+        ax.grid(True)
+        ax.legend()
+        self.canvas.draw()
