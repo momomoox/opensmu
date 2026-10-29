@@ -291,6 +291,13 @@ class MainPresenter:
                     f"R² = {result['r_squared']:.6f}{warning}\n"
                     f"Offset = {result['offset_V']:.4g} V")
                 self.stop_clicked()
+                if self.model.resistance_history_error:
+                    qtw.QMessageBox.warning(
+                        self.view, 'History file not saved',
+                        'Raw data and the fit were saved, but the history could not be updated:\n'
+                        + self.model.resistance_history_error)
+                else:
+                    self.view.message('History: ' + self.model.resistance_history_path)
         except Exception as exc:
             self.resistance_failed(exc)
 

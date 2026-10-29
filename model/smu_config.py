@@ -23,7 +23,7 @@ class SMUConfigMixin:
             },
             'R': {'startV': -0.1, 'stopV': 0.1, 'stepV': 0.01,
                   'voltage_range': 2.0, 'current_range': 0.001,
-                  'source_delay_ms': 50, 'four_wire': True},
+                  'source_delay_ms': 50, 'four_wire': True, 'sample_name': ''},
             'RT': {
                 'rt_voltage_range': 2.0,
                 'rt_voltage_set': 0.5,

@@ -186,7 +186,8 @@ class SMUMeasurementMixin:
 
     def _create_data_file(self, mode_prefix: str) -> bool:
         """Create the output data file, auto-creating the folder if needed."""
-        timestamp = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
+        timestamp = datetime.datetime.now().strftime(
+            '%Y_%m_%d_%H_%M_%S_%f' if mode_prefix == 'R' else '%Y_%m_%d_%H_%M_%S')
         file_name = f'{mode_prefix}{self.config["global"]["file_name"]}{timestamp}.txt'
         self.data.filepath = os.path.join(self.config['global']['save_folder'], file_name)
 
@@ -349,6 +350,9 @@ class SMUMeasurementMixin:
         self.data.reset_for_new_measurement()
         self.data.listV = voltages
         self.resistance_result = None
+        self.resistance_history_path = None
+        self.resistance_history_error = None
+        self.resistance_sample = ' '.join(str(cfg.get('sample_name', '')).split()) or 'Unnamed'
         self._configure_voltage_source(cfg['voltage_range'], 0.0)
         self.SMU.set_source_voltage_delay_auto_off()
         self.SMU.set_source_voltage_delay_time(cfg['source_delay_ms'])
@@ -363,6 +367,7 @@ class SMUMeasurementMixin:
         if not self._create_data_file('R'):
             raise OSError('Cannot create resistance data file. Check Save Folder.')
         self.data.file_handle.write('# R sweep; fit V_measured = R*I + offset\n')
+        self.data.file_handle.write(f'# sample_name={self.resistance_sample}\n')
         self.data.file_handle.write(f'# four_wire={cfg["four_wire"]}; current_limit_A={cfg["current_range"]}\n')
         self.data.file_handle.write('voltage_measured_V\tcurrent_A\tvoltage_set_V\n')
         self.SMU.set_output_on()
@@ -392,10 +397,21 @@ class SMUMeasurementMixin:
 
     def finish_resistance(self):
         from .resistance import fit_resistance
+        if self.resistance_result is not None:
+            return self.resistance_result
         result = fit_resistance(self.data.x_vals, self.data.y_vals)
         self.resistance_result = result
         for key, value in result.items():
             self.data.file_handle.write(f'# {key}={value}\n')
         self.data.file_handle.write('# status=complete\n')
         self.data.file_handle.flush()
+        # A history failure must not discard an otherwise valid raw measurement.
+        try:
+            from .resistance_history import append_resistance_history
+            self.resistance_history_path = append_resistance_history(
+                self.config['global']['save_folder'], self.resistance_sample,
+                result, self.data.filepath, self.config['global']['smu_type'],
+                self.config['R']['four_wire'])
+        except OSError as exc:
+            self.resistance_history_error = str(exc)
         return result

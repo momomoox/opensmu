@@ -323,3 +323,18 @@ Build the updated Windows app from the project root, after testing with Python:
 .venv\Scripts\python run.py
 .venv\Scripts\python -m PyInstaller installer\opensmu.spec --distpath installer\dist --workpath installer\build --clean --noconfirm
 ```
+
+#### Cumulative resistance history
+
+Enter **Sample name** on the R tab. After every completed R sweep, the app
+appends one tab-separated row to **Save Folder/resistance_history.txt**.
+Open it with Notepad or Excel for a quick overview. The Communication panel
+shows its full path after completion. The file preserves previous results
+across restarts; selecting a different Save Folder uses that folder's history.
+Rows include sample, completion time with timezone, R (Ω), R², regression standard
+error, voltage offset, point count, fit quality, instrument, wiring and raw file
+path. Blank sample names become `Unnamed`. Simulation rows are explicitly
+identified. Stopped/failed sweeps do not add rows; completed poor fits are marked.
+If the history cannot be written, a warning appears and the raw measurement
+and fit are retained. Close Excel if it locks the history file, and check folder
+permissions. Run one instance per Save Folder when writing measurements.
