@@ -227,13 +227,13 @@ class View(qtw.QWidget):
     def plot_resistance(self, voltage, current, result=None):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
-        ax.plot(current, voltage, 'o', label='Measured')
+        ax.plot(voltage, current, 'o', label='Measured')
         if result is not None:
             import numpy as np
             axis = np.asarray(sorted(current))
-            ax.plot(axis, result['resistance_ohm'] * axis + result['offset_V'],
+            ax.plot(result['resistance_ohm'] * axis + result['offset_V'], axis,
                     '-', label=f"Fit: R = {result['resistance_ohm']:.6g} Ω")
-        ax.set(xlabel='Measured current (A)', ylabel='Measured voltage (V)',
+        ax.set(xlabel='Measured voltage (V)', ylabel='Measured current (A)',
                title='Resistance: V = R·I + offset')
         ax.grid(True)
         ax.legend()
