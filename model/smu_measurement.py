@@ -129,7 +129,7 @@ class SMUMeasurementMixin:
                        25000)
 
         try:
-            if self.config['global']['terminal'] == 'FRONT':
+            if self.config['global']['terminal'] in ('FRONT', 'FRON'):
                 self.SMU.set_front_terminal()
                 print(f"[{lbl}] Using front terminal")
             elif self.config['global']['terminal'] == 'REAR':
@@ -337,3 +337,65 @@ class SMUMeasurementMixin:
         except Exception as e:
             print(f"❌ ERROR: Failed to read current in RT measurement: {e}")
             return self.data.x_vals, self.data.y_vals
+
+    # --- Resistance sweep (independent of IV/RT settings) ---
+
+    def r_starter(self):
+        from .resistance import sweep_voltages
+        cfg = self.config['R']
+        if self.config['global']['smu_type'] not in ('simulation', 'keithley2450'):
+            raise ValueError('R mode currently supports Keithley 2450 (SCPI) and Simulation.')
+        voltages = sweep_voltages(cfg)
+        self.data.reset_for_new_measurement()
+        self.data.listV = voltages
+        self.resistance_result = None
+        self._configure_voltage_source(cfg['voltage_range'], 0.0)
+        self.SMU.set_source_voltage_delay_auto_off()
+        self.SMU.set_source_voltage_delay_time(cfg['source_delay_ms'])
+        self._configure_current_measurement(cfg['current_range'])
+        if self.config['global']['smu_type'] == 'keithley2450':
+            self.SMU.write_smu(':SENS:CURR:RSEN ' + ('ON' if cfg['four_wire'] else 'OFF'))
+            self.SMU.write_smu(':SOUR:VOLT:READ:BACK ON')
+            self.SMU.write_smu(':FORM:DATA ASC')
+            error = self.SMU.query_smu(':SYST:ERR?').strip()
+            if int(error.split(',')[0]) != 0:
+                raise RuntimeError('Instrument setup error: ' + error)
+        if not self._create_data_file('R'):
+            raise OSError('Cannot create resistance data file. Check Save Folder.')
+        self.data.file_handle.write('# R sweep; fit V_measured = R*I + offset\n')
+        self.data.file_handle.write(f'# four_wire={cfg["four_wire"]}; current_limit_A={cfg["current_range"]}\n')
+        self.data.file_handle.write('voltage_measured_V\tcurrent_A\tvoltage_set_V\n')
+        self.SMU.set_output_on()
+        self.currState = SMUState.WAIT_FOR_EVENT
+        return max(1, int(cfg['source_delay_ms'] + self.config['global']['nplc'] * 20 + 50))
+
+    def r_collect_data(self):
+        import math
+        target = self.data.listV[self.data.index]
+        self.SMU.set_voltage_level(target)
+        time.sleep(self.config['R']['source_delay_ms'] / 1000)
+        if self.config['global']['smu_type'] == 'keithley2450':
+            values = self.SMU.query_smu(':READ? "defbuffer1", SOUR, READ').split(',')
+            voltage, current = map(float, values)
+        else:
+            voltage, current = target, self.SMU.readout()
+        if not all(math.isfinite(x) and abs(x) < 1e30 for x in (voltage, current)):
+            raise ValueError('Invalid instrument reading. Sweep stopped.')
+        if abs(current) >= 0.98 * self.config['R']['current_range']:
+            raise ValueError('Current is near the limit. Fit rejected; reduce voltage or adjust limit.')
+        self.data.x_vals.append(voltage)
+        self.data.y_vals.append(current)
+        self.data.file_handle.write(f'{voltage}\t{current}\t{target}\n')
+        self.data.file_handle.flush()
+        self.data.index += 1
+        return self.data.index == len(self.data.listV)
+
+    def finish_resistance(self):
+        from .resistance import fit_resistance
+        result = fit_resistance(self.data.x_vals, self.data.y_vals)
+        self.resistance_result = result
+        for key, value in result.items():
+            self.data.file_handle.write(f'# {key}={value}\n')
+        self.data.file_handle.write('# status=complete\n')
+        self.data.file_handle.flush()
+        return result

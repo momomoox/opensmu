@@ -3,6 +3,7 @@ from PyQt5 import QtCore as qtc
 from .smu_control_widget import SMUControlWidget
 from .iv_settings_widget import IVSettingsWidget
 from .rt_settings_widget import RTSettingsWidget
+from .resistance_settings_widget import ResistanceSettingsWidget
 from .file_settings_widget import FileSettingsWidget
 
 class ConfigDialog(qtw.QDialog):
@@ -41,6 +42,7 @@ class ConfigDialog(qtw.QDialog):
         
         # RT Settings widget
         self.rt_widget = RTSettingsWidget()
+        self.r_widget = ResistanceSettingsWidget()
         
         # File Settings widget
         self.file_widget = FileSettingsWidget()
@@ -51,6 +53,7 @@ class ConfigDialog(qtw.QDialog):
         self.tab_RT = qtw.QWidget()
         self.tabs_IV_RT.addTab(self.tab_IV, 'IV')
         self.tabs_IV_RT.addTab(self.tab_RT, 'RT')
+        self.tabs_IV_RT.addTab(self.r_widget, 'R')
         
         # Add widgets to tabs
         self.tab_IV_layout = qtw.QVBoxLayout()
@@ -78,6 +81,8 @@ class ConfigDialog(qtw.QDialog):
             self.tabs_IV_RT.setCurrentIndex(0)
         elif self.smu_widget.measure_mode_combo.currentText() == 'RT':
             self.tabs_IV_RT.setCurrentIndex(1)
+        elif self.smu_widget.measure_mode_combo.currentText() == 'R':
+            self.tabs_IV_RT.setCurrentIndex(2)
 
     def get_config(self):
         """Collect the configuration data from all widgets"""
@@ -87,6 +92,7 @@ class ConfigDialog(qtw.QDialog):
         file_config = self.file_widget.get_config()
         
         return {
+            'R': self.r_widget.get_config(),
             'IV': iv_config,
             'RT': rt_config,
             'global': {**smu_config, **file_config}
@@ -107,6 +113,8 @@ class ConfigDialog(qtw.QDialog):
             
             # Apply to RT widget
             self.rt_widget.apply_config(self.config['RT'])
+            self.r_widget.apply_config(self.config.get('R', {}))
+            self.measure_mode_changed()
             
             # Apply to File widget
             self.file_widget.apply_config(self.config['global'])

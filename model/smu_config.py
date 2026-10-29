@@ -21,6 +21,9 @@ class SMUConfigMixin:
                 'stepV': 0.1,
                 'current_range': 1e-6,
             },
+            'R': {'startV': -0.1, 'stopV': 0.1, 'stepV': 0.01,
+                  'voltage_range': 2.0, 'current_range': 0.001,
+                  'source_delay_ms': 50, 'four_wire': True},
             'RT': {
                 'rt_voltage_range': 2.0,
                 'rt_voltage_set': 0.5,
@@ -66,7 +69,9 @@ class SMUConfigMixin:
         """Load configuration from config/config.json."""
         try:
             with open(CONFIG_PATH, 'r') as f:
-                self.config = json.load(f)
+                loaded = json.load(f)
+                for section, values in loaded.items():
+                    self.config.setdefault(section, {}).update(values)
             print(f"Configuration loaded from {CONFIG_PATH}")
             self.SMU = self._create_smu_instance()
             return True
@@ -92,6 +97,7 @@ class SMUConfigMixin:
         """Apply new configuration and recreate SMU instance if type changed."""
         old_smu_type = self.config['global'].get('smu_type', 'simulation')
 
+        self.config['R'].update(new_config.get('R', {}))
         self.config['IV'].update(new_config['IV'])
         self.config['RT'].update(new_config['RT'])
         self.config['global'].update(new_config['global'])

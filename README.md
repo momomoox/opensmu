@@ -285,3 +285,41 @@ Output: `installer/dist/opensmu_setup_v0.1.1.exe`
 ## License
 
 MIT License — Copyright (c) 2026 Thanh Chien Nguyen. See [LICENSE](LICENSE) for details.
+
+### Resistance sweep (R)
+
+Select **Configuration → SMU Control → Mea. Mode → R**. The **R** tab has
+independent start/stop/step voltage, source delay, voltage range and current
+range/limit settings. Four-wire sensing is enabled by default; connect both
+FORCE and SENSE pairs to the sample, or uncheck it for two-wire measurements.
+Currently supported: **Keithley 2450 in native SCPI mode** and **Simulation**.
+Existing configuration files are migrated in memory, preserving IV/RT settings.
+
+The application scans voltage and fits **V_measured = R × I + offset** using
+all completed points (at least three). The display shows resistance in ohms,
+fit standard error, voltage offset and R², together with measured V versus I
+and the fitted line. R² below 0.99 is flagged as a poor/non-ohmic fit; standard
+error is regression uncertainty, not full instrument measurement uncertainty.
+Use a small voltage interval where the sample is ohmic.
+
+On 2450, source readback supplies the measured voltage from the same reading
+as the current. A reading at or above 98% of the configured current limit is
+rejected conservatively: reduce sweep voltage or choose an appropriate limit.
+Read/initialization errors stop the R run and attempt output-off and connection
+cleanup. An interrupted run retains raw points but has no completed fit.
+
+Files prefixed `R` contain measured voltage (V), current (A), set voltage (V),
+and commented fit results/status. Select a writable Save Folder before starting.
+The R plot always uses linear axes. IV and RT retain their existing workflows.
+
+Validation: 73 automated tests pass using an installed software VISA backend,
+including simulation, regression, overflow/degenerate inputs, current-limit
+rejection, mock 2450 readback, and offscreen UI. No physical instrument or
+Windows executable was available for hardware/packaging validation.
+
+Build the updated Windows app from the project root, after testing with Python:
+
+```bat
+.venv\Scripts\python run.py
+.venv\Scripts\python -m PyInstaller installer\opensmu.spec --distpath installer\dist --workpath installer\build --clean --noconfirm
+```

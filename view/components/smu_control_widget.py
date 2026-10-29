@@ -58,6 +58,7 @@ class SMUControlWidget(qtw.QGroupBox):
         self.measure_mode_combo = qtw.QComboBox()
         self.measure_mode_combo.addItem('IV', 0)
         self.measure_mode_combo.addItem('RT', 1)
+        self.measure_mode_combo.addItem('R', 2)
         self.measure_mode_combo.setCurrentText('IV')
         
         # Test connection button
